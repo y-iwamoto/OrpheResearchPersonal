@@ -326,7 +326,7 @@ function stopRecording() {
 
       // 現在の歩数のSwingPhaseの再開目の時刻(現在の歩数のtimestamp + 現在の歩数のstanding時間) - 一歩先の歩数の時刻(timestamp)
       var afterDoubleSupportPhase = (new Date(recordData[index].timestamp).getTime() / 1000 + recordData[index].gait_standing_phase_duration) - new Date(recordData[index + 1].timestamp).getTime() / 1000
-      double_support_time = beforeDoubleSupportPhase + afterDoubleSupportPhase
+      double_support_time = (beforeDoubleSupportPhase + afterDoubleSupportPhase) / (item.gait_standing_phase_duration + item.gait_swing_phase_duration)
     }
     row.push(double_support_time);
 
