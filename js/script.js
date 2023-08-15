@@ -293,63 +293,7 @@ function startRecording() {
 
 function stopRecording() {
   isRecording = false;
-  // Convert to CSV
-  let csvContent = "data:text/csv;charset=utf-8,";
-  csvContent += "timestamp,Left0_or_Right1,gait_calorie,gait_direction,gait_distance,gait_standing_phase_duration,gait_steps,gait_swing_phase_duration,gait_type,speed_km_per_hour,ave_stride_length,single_stance_symmetry_ratio,double_support_time,stride_time_cv\r\n"; // header
-
-  var walking_cycle_array = []
-  recordData.forEach(function (item, index) {
-    let row = [];
-    row.push(item.timestamp);
-    row.push(item.Left0_or_Right1);
-    row.push(item.gait_calorie ?? 0, item.gait_direction ?? 0, item.gait_distance ?? 0, item.gait_standing_phase_duration ?? 0, item.gait_steps ?? 0, item.gait_swing_phase_duration ?? 0, item.gait_type ?? 0);
-    // No1 歩行速度
-    row.push(item.speed_km_per_hour);
-    // No2 歩幅ストライド
-    row.push(item.ave_stride_length);
-
-    // No3 対称性
-    var single_stance_symmetry_ratio = 0
-    if (index !== 0) {
-      var up_down_symmetry_ratio = item.gait_standing_phase_duration / recordData[index - 1].gait_standing_phase_duration
-      var down_up_symmetry_ratio = recordData[index - 1].gait_standing_phase_duration / item.gait_standing_phase_duration
-      single_stance_symmetry_ratio = up_down_symmetry_ratio >= 1 ? up_down_symmetry_ratio : down_up_symmetry_ratio
-    }
-    row.push(single_stance_symmetry_ratio);
-
-    // No4 両脚支持期間
-    // 参考：https://orphe.io/column/post/basic-knowledge-of-walking-motion#index_oncO9_4r
-    var double_support_time = 0
-    if (index > 0 && index < recordData.length - 1) {
-      // 一歩前のSwingPhaseの再開目の時刻(一歩前のtimestamp + 一歩前のstanding時間) - 現在の歩数の時刻(timestamp)
-      var beforeDoubleSupportPhase = (new Date(recordData[index - 1].timestamp).getTime() / 1000 + recordData[index - 1].gait_standing_phase_duration) - new Date(recordData[index].timestamp).getTime() / 1000
-
-      // 現在の歩数のSwingPhaseの再開目の時刻(現在の歩数のtimestamp + 現在の歩数のstanding時間) - 一歩先の歩数の時刻(timestamp)
-      var afterDoubleSupportPhase = (new Date(recordData[index].timestamp).getTime() / 1000 + recordData[index].gait_standing_phase_duration) - new Date(recordData[index + 1].timestamp).getTime() / 1000
-      double_support_time = (beforeDoubleSupportPhase + afterDoubleSupportPhase) / (item.gait_standing_phase_duration + item.gait_swing_phase_duration)
-    }
-    row.push(double_support_time);
-
-
-    // No5 ストライドCV
-    var stride_time_cv = 0
-
-    walking_cycle_array.push(item.gait_standing_phase_duration + item.gait_swing_phase_duration)
-
-    // 5歩以上のデータがある場合は、最初の歩数を削除する
-    if (walking_cycle_array.length > 5) {
-      walking_cycle_array.shift();
-    }
-
-    if (walking_cycle_array.length > 1) {
-
-      var average = math.mean(walking_cycle_array);
-      var standardDeviation = math.std(walking_cycle_array);
-      stride_time_cv = (standardDeviation / average) * 100
-    }
-    row.push(stride_time_cv);
-    csvContent += row.join(",") + "\r\n";
-  });
+  let csvContent = convertToCsv();
   var encodedUri = encodeURI(csvContent);
   var link = document.createElement("a");
   link.setAttribute("href", encodedUri);
@@ -359,6 +303,92 @@ function stopRecording() {
   document.body.removeChild(link);
   recordButton.html("Start Recording");
   showRecordedData();
+}
+
+/**
+ * OrpheCoreで取れる歩行関係のrowDataと歩行計測に必要な項目値を求めてCSVに出力するための中身を作成
+ * 
+ * @returns csvContent
+ */
+function convertToCsv() {
+  let csvContent = "data:text/csv;charset=utf-8,";
+  csvContent += "timestamp,Left0_or_Right1,gait_calorie,gait_direction,gait_distance,gait_standing_phase_duration,gait_steps,gait_swing_phase_duration,gait_type,speed_km_per_hour,ave_stride_length,single_stance_symmetry_ratio,double_support_time,stride_time_cv\r\n"; // header
+
+  var walking_cycle_array = [];
+  recordData.forEach(function (item, index) {
+    let row = [];
+    row.push(item.timestamp);
+    row.push(item.Left0_or_Right1);
+    row.push(item.gait_calorie ?? 0, item.gait_direction ?? 0, item.gait_distance ?? 0, item.gait_standing_phase_duration ?? 0, item.gait_steps ?? 0, item.gait_swing_phase_duration ?? 0, item.gait_type ?? 0);
+
+    // No1 歩行速度(ただし単位はkm/h)
+    // 用語参考：https://orphe.io/column/post/report-of-gait-analyysis-evaluation#index_yAdoX4PG
+    // 平均値参考：https://ihoujin.nagoya/gait-speed/
+    row.push(item.speed_km_per_hour);
+
+    // No2 歩幅ストライド
+    // 用語参考：https://orphe.io/column/post/report-of-gait-analyysis-evaluation#index_cxnvCUZb
+    // TODO: 現時点でストライドの長さとして出ているので歩幅を出さないといけない
+    row.push(item.ave_stride_length);
+
+    // No3 対称性
+    // 用語参考：https://orphe.io/column/post/report-of-gait-analyysis-evaluation#index_01t7yqM_
+    // 平均値参考：https://www.apple.com/jp/healthcare/docs/site/Measuring_Walking_Quality_Through_iPhone_Mobility_Metrics_JP.pdf 12ページ目
+    var single_stance_symmetry_ratio = 0;
+    // 一歩前のstanding時間と現在歩行時のstanding時間を比較するので最初の一歩目では計測しない
+    if (index !== 0) {
+      // 一歩前のstanding時間と現在歩行時のstanding時間をそれぞれ割ってみて、1以上の値となる方を対称性として使用する
+      var up_down_symmetry_ratio = item.gait_standing_phase_duration / recordData[index - 1].gait_standing_phase_duration;
+      var down_up_symmetry_ratio = recordData[index - 1].gait_standing_phase_duration / item.gait_standing_phase_duration;
+      single_stance_symmetry_ratio = up_down_symmetry_ratio >= 1 ? up_down_symmetry_ratio : down_up_symmetry_ratio;
+    }
+    row.push(single_stance_symmetry_ratio);
+
+    // No4 両脚支持期
+    // 用語参考1：https://orphe.io/column/post/report-of-gait-analyysis-evaluation#index_V2EiLSBf
+    // 用語参考2：https://orphe.io/column/post/basic-knowledge-of-walking-motion#index_oncO9_4r
+    // 平均値参考：https://www.apple.com/jp/healthcare/docs/site/Measuring_Walking_Quality_Through_iPhone_Mobility_Metrics_JP.pdf 11ページ目
+    var double_support_time = 0;
+    // 用語参考2の「図．右足（オレンジ色）を例にした歩行周期の分類」より
+    // 計測には現在歩行時の歩行周期(Stance Phase +  Swing Phase)、その一歩前の歩行周期(図左から一つ目のグレー部分のStance Phase +  Swing Phase)、その一歩先の歩行周期(図左から二つ目のグレー部分のStance Phase +  Swing Phase(図では見えてない))
+    // を元に左から一つ目のDoubleSupportPhaseと二つ目のDoubleSupportPhaseを求めるする想定なので、一歩前、現在歩行、一歩先の歩行データが必要。
+    // そのため最初の一歩目と、30秒計測最終歩数については計測除外しています。
+    if (index > 0 && index < recordData.length - 1) {
+      // 一歩前のSwingPhaseの堺目の時刻(一歩前のtimestamp + 一歩前のstanding経過時間) - 現在歩行時の時刻(timestamp)
+      var beforeDoubleSupportPhase = (new Date(recordData[index - 1].timestamp).getTime() / 1000 + recordData[index - 1].gait_standing_phase_duration) - new Date(recordData[index].timestamp).getTime() / 1000;
+      // 現在歩行時のSwingPhaseの堺目の時刻(現在歩行時のtimestamp + 現在歩行時のstanding時間) - 一歩先の歩行時刻(timestamp)
+      var afterDoubleSupportPhase = (new Date(recordData[index].timestamp).getTime() / 1000 + recordData[index].gait_standing_phase_duration) - new Date(recordData[index + 1].timestamp).getTime() / 1000;
+      // 両脚支持期とは、1歩行周期を100%としたときの両脚支持時間の占める割合と定義されるらしいので
+      // 歩行周期から計算したDoubleSupportPhaseの合計を割る
+      double_support_time = (beforeDoubleSupportPhase + afterDoubleSupportPhase) / (item.gait_standing_phase_duration + item.gait_swing_phase_duration);
+    }
+    row.push(double_support_time);
+
+    // No5 ストライドCV
+    // 用語参考：https://orphe.io/column/post/report-of-gait-analyysis-evaluation#index_6apv3f6Y
+    // 値参考：https://orphe.io/column/post/report-of-gait-analyysis-evaluation#index_6apv3f6Y
+    var stride_time_cv = 0;
+    // 歩行周期の値を毎度配列に格納
+    walking_cycle_array.push(item.gait_standing_phase_duration + item.gait_swing_phase_duration);
+    // updateMetricsやupdateStrideLengthの計算ロジック同等に
+    // 5歩以上のデータがある場合は、一番古い歩行周期の値を削除する
+    if (walking_cycle_array.length > 5) {
+      walking_cycle_array.shift();
+    }
+    // 平均を求める対象が複数出てきてから計算を始める
+    if (walking_cycle_array.length > 1) {
+      // 歩行周期時間の平均値
+      var average = math.mean(walking_cycle_array);
+      // 歩行周期時間の標準偏差
+      var standardDeviation = math.std(walking_cycle_array);
+      // ストライドCV [%] = (歩行周期時間の標準偏差 / 歩行周期時間の平均値) × 100
+      // TODO:他の項目と合わせて✖️100をやめて小数点にするか、他の項目を✖️100にするのか
+      stride_time_cv = (standardDeviation / average) * 100;
+    }
+    row.push(stride_time_cv);
+    csvContent += row.join(",") + "\r\n";
+  });
+  return csvContent;
 }
 
 function downloadJson(jsonData, filename) {
