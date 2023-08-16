@@ -326,10 +326,15 @@ function convertToCsv() {
     // 平均値参考：https://ihoujin.nagoya/gait-speed/
     row.push(item.speed_km_per_hour);
 
-    // No2 歩幅ストライド
+    // No2 歩幅
     // 用語参考：https://orphe.io/column/post/report-of-gait-analyysis-evaluation#index_cxnvCUZb
-    // TODO: 現時点でストライドの長さとして出ているので歩幅を出さないといけない
-    row.push(item.ave_stride_length);
+    // 計算方法：https://www.faq.healthcare.omron.co.jp/faq/show/4195?site_domain=jp
+    // 2個先の配列の歩いた歩数の距離 / 歩数(2)
+    var step = 0
+    if (index > 1) {
+      step = (item.gait_distance - recordData[index - 2].gait_distance) / 2
+    }
+    row.push(step);
 
     // No3 対称性
     // 用語参考：https://orphe.io/column/post/report-of-gait-analyysis-evaluation#index_01t7yqM_
