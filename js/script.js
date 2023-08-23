@@ -321,10 +321,14 @@ function convertToCsv() {
     row.push(item.Left0_or_Right1);
     row.push(item.gait_calorie ?? 0, item.gait_direction ?? 0, item.gait_distance ?? 0, item.gait_standing_phase_duration ?? 0, item.gait_steps ?? 0, item.gait_swing_phase_duration ?? 0, item.gait_type ?? 0);
 
-    // No1 歩行速度(ただし単位はkm/h)
+    // No1 歩行速度(単位はm/sに変更)
     // 用語参考：https://orphe.io/column/post/report-of-gait-analyysis-evaluation#index_yAdoX4PG
     // 平均値参考：https://ihoujin.nagoya/gait-speed/
-    row.push(item.speed_km_per_hour);
+    function convertKmhToMps(kmh) {
+      return kmh * (1000 / 3600); // 1 km = 1000 m, 1 h = 3600 s
+    }
+
+    row.push(convertKmhToMps(item.speed_km_per_hour));
 
     // No2 歩幅(ステップ長)
     // 用語参考：https://orphe.io/column/post/report-of-gait-analyysis-evaluation#index_cxnvCUZb
@@ -362,7 +366,7 @@ function convertToCsv() {
       var afterDoubleSupportPhase = (new Date(recordData[index].timestamp).getTime() / 1000 + recordData[index].gait_standing_phase_duration) - new Date(recordData[index + 1].timestamp).getTime() / 1000;
       // 両脚支持期とは、1歩行周期を100%としたときの両脚支持時間の占める割合と定義されるらしいので
       // 歩行周期から計算したDoubleSupportPhaseの合計を割る
-      double_support_time = (beforeDoubleSupportPhase + afterDoubleSupportPhase) / (item.gait_standing_phase_duration + item.gait_swing_phase_duration);
+      double_support_time = ((beforeDoubleSupportPhase + afterDoubleSupportPhase) / (item.gait_standing_phase_duration + item.gait_swing_phase_duration)) * 100;
     }
     row.push(double_support_time);
 
