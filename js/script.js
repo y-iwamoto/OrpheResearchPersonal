@@ -238,15 +238,53 @@ function updateMetrics(id, gait) {//duration,cadence,pace,speedを計算
 
     if (id == 0) {
       walking_cycles["left"].push(walking_cycle)
-      average = math.mean(walking_cycles["left"]);
-      standardDeviation = math.std(walking_cycles["left"]);
+      var dataset = walking_cycles["left"]
+      var sum = dataset.reduce((a, b) => {
+        return a + b;
+      });
+
+      average = sum / dataset.length;
+
+      var deviation = dataset.map((a) => {
+        const subtract = a - average;
+        return subtract ** 2;
+      });
+
+      var deviationSum = deviation.reduce((a, b) => {
+        return a + b
+      });
+
+      var variance = deviationSum / (dataset.length - 1);
+
+      standardDeviation = Math.sqrt(variance);
+      //average = math.mean(walking_cycles["left"]);
+      //standardDeviation = math.std(walking_cycles["left"]);
       stride_time_cv = (standardDeviation / average) * 100;
       //stride_time_cv = calculateStrideTimeCv(walking_cycles["left"]);
 
     } else if (id == 1) {
       walking_cycles["right"].push(walking_cycle)
-      average = math.mean(walking_cycles["right"]);
-      standardDeviation = math.std(walking_cycles["right"]);
+      var dataset = walking_cycles["right"]
+      var sum = dataset.reduce((a, b) => {
+        return a + b;
+      });
+
+      average = sum / dataset.length;
+
+      var deviation = dataset.map((a) => {
+        const subtract = a - average;
+        return subtract ** 2;
+      });
+
+      var deviationSum = deviation.reduce((a, b) => {
+        return a + b
+      });
+
+      var variance = deviationSum / (dataset.length - 1);
+
+      standardDeviation = Math.sqrt(variance);
+      //average = math.mean(walking_cycles["right"]);
+      //standardDeviation = math.std(walking_cycles["right"]);
       stride_time_cv = (standardDeviation / average) * 100;
       //stride_time_cv = calculateStrideTimeCv(walking_cycles["right"]);
     }
@@ -428,7 +466,10 @@ function convertToCsv() {
       afterDoubleSupportPhase = (AfterDate1.getTime() / 1000 + recordData[index].gait_standing_phase_duration) - AfterDate2.getTime() / 1000;
       // 両脚支持期とは、1歩行周期を100%としたときの両脚支持時間の占める割合と定義されるらしいので
       // 歩行周期から計算したDoubleSupportPhaseの合計を割る
-      double_support_time = ((beforeDoubleSupportPhase + afterDoubleSupportPhase) / (item.gait_standing_phase_duration + item.gait_swing_phase_duration)) * 100;
+      //double_support_time = ((beforeDoubleSupportPhase + afterDoubleSupportPhase) / (item.gait_standing_phase_duration + item.gait_swing_phase_duration)) * 100;
+
+
+      double_support_time = recordData[index].gait_standing_phase_duration - recordData[index - 1].gait_swing_phase_duration
     }
     row.push(double_support_time);
 
