@@ -232,7 +232,13 @@ function updateMetrics(id, gait) {//duration,cadence,pace,speedを計算
     ave_speed[id] = speed[id].reduce((a, b) => a + b) / speed[id].length;
 
     if (isRecording) {
-      var { stride_time_cv, average, standardDeviation } = calculateStrideCv(gait, id);
+      const walking_cycle = gait.standing_phase_duration + gait.swing_phase_duration;
+      const datasetKey = id === 0 ? "left" : "right";
+
+      walking_cycles[datasetKey].push(walking_cycle);
+      const dataset = walking_cycles[datasetKey];
+
+      var { stride_time_cv, average, standardDeviation } = calculateStrideCv(dataset);
 
       var timestamp = new Date().toISOString()
 
@@ -265,63 +271,17 @@ function updateMetrics(id, gait) {//duration,cadence,pace,speedを計算
 }
 
 
-function calculateStrideCv(gait, id) {
-  var walking_cycle = gait.standing_phase_duration + gait.swing_phase_duration;
-  var stride_time_cv = 0;
-  var average = 0;
-  var standardDeviation = 0;
+function calculateStrideCv(dataset) {
+  const sum = dataset.reduce((a, b) => a + b, 0);
+  const average = sum / dataset.length;
 
-  if (id == 0) {
-    walking_cycles["left"].push(walking_cycle);
-    var dataset = walking_cycles["left"];
-    var sum = dataset.reduce((a, b) => {
-      return a + b;
-    });
+  const deviation = dataset.map((a) => (a - average) ** 2);
+  const deviationSum = deviation.reduce((a, b) => a + b, 0);
+  const variance = deviationSum / (dataset.length - 1);
+  const standardDeviation = Math.sqrt(variance);
 
-    average = sum / dataset.length;
+  const stride_time_cv = (standardDeviation / average) * 100;
 
-    var deviation = dataset.map((a) => {
-      const subtract = a - average;
-      return subtract ** 2;
-    });
-
-    var deviationSum = deviation.reduce((a, b) => {
-      return a + b;
-    });
-
-    var variance = deviationSum / (dataset.length - 1);
-
-    standardDeviation = Math.sqrt(variance);
-    //average = math.mean(walking_cycles["left"]);
-    //standardDeviation = math.std(walking_cycles["left"]);
-    stride_time_cv = (standardDeviation / average) * 100;
-    //stride_time_cv = calculateStrideTimeCv(walking_cycles["left"]);
-  } else if (id == 1) {
-    walking_cycles["right"].push(walking_cycle);
-    var dataset = walking_cycles["right"];
-    var sum = dataset.reduce((a, b) => {
-      return a + b;
-    });
-
-    average = sum / dataset.length;
-
-    var deviation = dataset.map((a) => {
-      const subtract = a - average;
-      return subtract ** 2;
-    });
-
-    var deviationSum = deviation.reduce((a, b) => {
-      return a + b;
-    });
-
-    var variance = deviationSum / (dataset.length - 1);
-
-    standardDeviation = Math.sqrt(variance);
-    //average = math.mean(walking_cycles["right"]);
-    //standardDeviation = math.std(walking_cycles["right"]);
-    stride_time_cv = (standardDeviation / average) * 100;
-    //stride_time_cv = calculateStrideTimeCv(walking_cycles["right"]);
-  }
   return { stride_time_cv, average, standardDeviation };
 }
 
@@ -395,20 +355,9 @@ function stopRecording() {
  */
 function convertToCsv() {
   let csvContent = "data:text/csv;charset=utf-8,";
-  // average: average,
 
-  // standard_deviation: standardDeviation,
+  csvContent += "timestamp,Left0_or_Right1,gait_calorie,gait_direction,gait_distance,gait_standing_phase_duration,gait_steps,gait_swing_phase_duration,gait_type,speed_m_per_second,ave_stride_length,single_stance_symmetry_ratio,double_support_time,stride_time_cv,average,standard_deviation\r\n"; // header
 
-  //var beforeDoubleSupportPhase = 0
-  //  var afterDoubleSupportPhase = 0
-  //  var BeforeDate1 = null;
-  //  var BeforeDate2 = null;
-  //  var AfterDate1 = null;
-  //  var AfterDate2 = null;
-
-  csvContent += "timestamp,Left0_or_Right1,gait_calorie,gait_direction,gait_distance,gait_standing_phase_duration,gait_steps,gait_swing_phase_duration,gait_type,speed_km_per_hour,ave_stride_length,single_stance_symmetry_ratio,double_support_time,stride_time_cv,average,standard_deviation\r\n"; // header
-
-  var walking_cycle_array = [];
   recordData.forEach(function (item, index) {
     let row = [];
     row.push(item.timestamp);
@@ -424,12 +373,9 @@ function convertToCsv() {
 
     row.push(convertKmhToMps(item.speed_km_per_hour));
 
-    // No2 歩幅(ステップ長)
+    // No2 歩幅
     // 用語参考：https://orphe.io/column/post/report-of-gait-analyysis-evaluation#index_cxnvCUZb
-    // 計算方法：https://www.faq.healthcare.omron.co.jp/faq/show/4195?site_domain=jp
-    // 単純平均のストライド長/2=ステップ長
-    var step = item.duration_sec / 2
-    row.push(step);
+    row.push(item.duration_sec);
 
     // No3 対称性
     // 用語参考：https://orphe.io/column/post/report-of-gait-analyysis-evaluation#index_01t7yqM_
@@ -449,10 +395,7 @@ function convertToCsv() {
     // 用語参考2：https://orphe.io/column/post/basic-knowledge-of-walking-motion#index_oncO9_4r
     // 平均値参考：https://www.apple.com/jp/healthcare/docs/site/Measuring_Walking_Quality_Through_iPhone_Mobility_Metrics_JP.pdf 11ページ目
     var double_support_time = 0;
-    // 用語参考2の「図．右足（オレンジ色）を例にした歩行周期の分類」より
-    // 計測には現在歩行時の歩行周期(Stance Phase +  Swing Phase)、その一歩前の歩行周期(図左から一つ目のグレー部分のStance Phase +  Swing Phase)、その一歩先の歩行周期(図左から二つ目のグレー部分のStance Phase +  Swing Phase(図では見えてない))
-    // を元に左から一つ目のDoubleSupportPhaseと二つ目のDoubleSupportPhaseを求めるする想定なので、一歩前、現在歩行、一歩先の歩行データが必要。
-    // そのため最初の一歩目と、30秒計測最終歩数については計測除外しています。
+    // gait_standing_phase_duration - 一歩前のgait_swing_phase_duration = DoubleSupportPhase
     if (index > 0) {
       double_support_time = recordData[index].gait_standing_phase_duration - recordData[index - 1].gait_swing_phase_duration
     }
