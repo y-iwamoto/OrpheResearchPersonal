@@ -72,7 +72,7 @@ var isRecording = false;
 var recordingStartTime;
 var recordData = [];
 var recordingStartTime = 0;
-var recordingDuration = 45 * 1000; // 30 seconds in milliseconds
+var recordingDuration = 30 * 1000; // 30 seconds in milliseconds
 var recordButton; //recording toggle button
 var gateArray = [];
 var walking_cycles = { left: [], right: [] }
@@ -316,15 +316,38 @@ function toggleRecording() {
   }
 }
 
+var countdownDuration = 15 * 1000; // 15秒のカウントダウンをミリ秒に変換
+var countdownInterval = 1000; // カウントダウンの更新間隔（1秒ごとに更新）
+
+var countdownStartTime = 0;
+var countdownId;
+
+
 function startRecording() {
-  isRecording = true;
-  recordingStartTime = Date.now();
-  recordData = [];
-  recordButton.html("Stop Recording");
+  countdownStartTime = Date.now();
+  updateCountdown();
+}
+
+function updateCountdown() {
+  var elapsedTime = Date.now() - countdownStartTime;
+  var remainingTime = Math.max(countdownDuration - elapsedTime, 0);
+  var remainingTimeSeconds = Math.ceil(remainingTime / 1000); // 切り上げて秒に変換
+
+  recordButton.html("Start Countdown: " + remainingTimeSeconds + "s");
+
+  if (remainingTime <= 0) {
+    isRecording = true;
+    recordingStartTime = Date.now();
+    recordData = [];
+    recordButton.html("Stop Recording");
+  } else {
+    countdownId = setTimeout(updateCountdown, countdownInterval);
+  }
 }
 
 function stopRecording() {
   isRecording = false;
+  walking_cycles = { left: [], right: [] }
   let csvContent = convertToCsv();
   var encodedUri = encodeURI(csvContent);
   var link = document.createElement("a");
