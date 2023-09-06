@@ -72,7 +72,7 @@ var isRecording = false;
 var recordingStartTime;
 var recordData = [];
 var recordingStartTime = 0;
-var recordingDuration = 30 * 1000; // 30 seconds in milliseconds
+var recordingDuration = 45 * 1000; // 30 seconds in milliseconds
 var recordButton; //recording toggle button
 var gateArray = [];
 var walking_cycles = { left: [], right: [] }
@@ -283,17 +283,6 @@ function calculateStrideCv(dataset) {
   const stride_time_cv = (standardDeviation / average) * 100;
 
   return { stride_time_cv, average, standardDeviation };
-}
-
-
-function calculateStrideTimeCv(walking_cycle_array) {
-  var average = math.mean(walking_cycle_array);
-  // 歩行周期時間の標準偏差
-  var standardDeviation = math.std(walking_cycle_array);
-
-  // ストライドCV [%] = (歩行周期時間の標準偏差 / 歩行周期時間の平均値) × 100
-  var stride_time_cv = (standardDeviation / average) * 100;
-  return stride_time_cv;
 }
 
 //3軸のstrideデータから歩幅strideを計算
